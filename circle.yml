@@ -1,0 +1,45 @@
+machine:
+  pre:
+    - curl http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1204/x86_64/cuda-repo-ubuntu1204_6.5-14_amd64.deb -o /tmp/cuda_install.deb
+    - sudo dpkg -i /tmp/cuda_install.deb
+    - rm -f /tmp/cuda_install.deb
+    - sudo apt-get update
+    - sudo apt-get -y purge "libboost*"
+    - sudo apt-get -y install libatlas-base-dev
+    - sudo apt-get -y install libboost-dev libboost-system-dev libboost-python-dev libboost-thread-dev
+    - sudo apt-get -y install python-dev libleveldb-dev libsnappy-dev libopencv-dev 
+    - sudo apt-get -y install libprotobuf-dev protobuf-compiler
+    - sudo apt-get -y install libhdf5-serial-dev libgflags-dev libgoogle-glog-dev
+    - sudo apt-get -y install bc
+    - sudo apt-get -y install cuda-core-6-5 cuda-cublas-6-5 cuda-cublas-dev-6-5 cuda-cudart-6-5 cuda-cudart-dev-6-5 cuda-curand-6-5 cuda-curand-dev-6-5
+    - sudo ln -s /usr/local/cuda-6.5 /usr/local/cuda
+    - curl ftp://ftp.openldap.org/pub/OpenLDAP/openldap-release/openldap-2.4.39.tgz -o /tmp/openldap.tgz
+    - tar -C /tmp -xzvf /tmp/openldap.tgz
+    - cd /tmp/openldap*/libraries/liblmdb/; make; sudo make install
+    - rm -f /tmp/openldap.tgz
+    - sudo ln -s /usr/local/lib/liblmdb.so /usr/lib
+  python:
+    version: 2.7.6
+dependencies:
+  override:
+    - for dep in `cat python/requirements.txt`; do pip install $dep; done
+test:
+  pre:
+    - echo "CPU_ONLY := 1" > Makefile.config
+    - cat Makefile.config.example >> Makefile.config
+    - make all
+    - make test  
+  override:
+    - make runtest
+    - make distribute
+    - tar czvf dist.tar.gz distribute
+    - tar czvf shared.tar.gz `ldd distribute/lib/libcaffe.so  | cut -d'>' -f2 | sed 's/ \(.*\) (.*/\1/g' | sed 's/\.so.*/\.so*/g' | tr "\n" " "`
+    - sudo find / -name "*cblas*" | grep -v virtualenv > MANIFEST.txt
+    - sudo find / -name "*atlas*" | grep -v virtualenv | grep -v dpkg >> MANIFEST.txt
+    - sudo find / -name "*lmdb*" | grep -v virtualenv >> MANIFEST.txt
+    - tar czvf more_shared.tar.gz `cat MANIFEST.txt | tr "\n" " "`
+general:
+  artifacts:
+    - "dist.tar.gz"
+    - "shared.tar.gz"
+    - "more_shared.tar.gz"
